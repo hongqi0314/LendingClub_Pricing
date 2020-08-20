@@ -20,7 +20,7 @@ stopifnot(nrow(lc_data) == length(unique(lc_data$id)))
 lc_temp_debtCalc <- lc_data %>% 
   dplyr::filter(
       !(is.na(annual_inc) & is.na(annual_inc_joint))
-    , dti >= 0.00 # exclude records with negative DTI.
+    , dti >= 0.00  # exclude records with negative DTI.
     , dti < 999.00 # exclude records with DTI 999.00 because it looks like a truncated value.
   ) %>% 
   dplyr::mutate(
@@ -32,3 +32,15 @@ lc_temp_debtCalc <- lc_data %>%
     dti_total = round(debt_total / annual_inc_total * 100, 2)
   )
   
+### 2.2 Check missing value proportion for all features ----
+lc_data_missing <- 
+  purrr::map_dbl(lc_temp_debtCalc, ~ round(mean(is.na(.)) * 100, 2)) %>%
+  base::sort(., decreasing = TRUE)
+
+## 2.2.1 Drop features missing more than 90% data ----
+lc_data_nonmiss <- lc_temp_debtCalc %>% 
+  dplyr::select(
+    names(lc_data_missing)[lc_data_missing <= 90.00]
+  ) # Double check needed since it seems that it's reasonable for some features to
+    # have huge number of missing values. 
+    # For example, "inq_last_12m", "total_cu_tl", or "open_acc_6m".
