@@ -37,10 +37,21 @@ lc_data_missing <-
   purrr::map_dbl(lc_temp_debtCalc, ~ round(mean(is.na(.)) * 100, 2)) %>%
   base::sort(., decreasing = TRUE)
 
-## 2.2.1 Drop features missing more than 90% data ----
+## 2.2.1 Drop features missing more than 90% of the records ----
 lc_data_nonmiss <- lc_temp_debtCalc %>% 
   dplyr::select(
     names(lc_data_missing)[lc_data_missing <= 90.00]
   ) # Double check needed since it seems that it's reasonable for some features to
     # have huge number of missing values. 
     # For example, "inq_last_12m", "total_cu_tl", or "open_acc_6m".
+
+### 2.3 Re-organize target variable 'loan_status' and use only 'Charged off' and 'Fully Paid' for Lifetime PD model training ----
+lc_data_nonCurrent <- lc_data_nonmiss %>% 
+  dplyr::mutate(
+    loan_status = case_when(
+      str_detect(loan_status, regex('charged off$', ignore_case = TRUE)) ~ 'charged_off',
+      str_detect(loan_status, regex('fully paid$', ignore_case = TRUE)) ~ 'fully_paid',
+      TRUE ~ 'ongoing'
+    )
+  ) %>%
+  dplyr::filter(loan_status != 'ongoing')
