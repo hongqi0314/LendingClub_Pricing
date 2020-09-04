@@ -117,7 +117,7 @@ cues_init <- readRDS(here::here('RDS', 'initial_cues.RDS'))
 lc_data_init_1 <- lc_data_nonCurrent %>% 
   dplyr::select(all_of(cues_init), issue_d, last_pymnt_d)
 
-### 2.5 Categorical variables encoding ----
+### 2.5 Categorical variables cleaning and encoding ----
 lc_data_init_1 %>% 
   dplyr::select_if(is.character) %>%
   dplyr::select(-earliest_cr_line, -issue_d) %>%
@@ -163,4 +163,32 @@ lc_data_init_4 <- lc_data_init_3 %>%
       str_detect(emp_length, regex('^< 1')) ~ '0',
       TRUE ~ str_extract(emp_length, regex('(\\d)+'))
     )
+  )
+
+## 2.5.4 Create dummy variables for categorical features ----
+lc_dummies_howner <- utilALF::dummify(lc_data_init_4$home_ownership, 
+                                      'home_ownership') %>% 
+  dplyr::select(-ends_with('own'))
+
+lc_dummies_purpose <- utilALF::dummify(lc_data_init_4$purpose, 'purpose') %>% 
+  dplyr::select(-ends_with('medical'))
+
+lc_data_wDummies <- lc_data_init_4 %>% 
+  dplyr::select(
+      -emp_length
+    , -earliest_cr_line
+    , -issue_d
+    , -last_pymnt_d
+  ) %>% 
+  dplyr::mutate(
+      loan_status = ifelse(loan_status == 'charged_off', 1, 0)
+    , term_36_ind = ifelse(term == '36 months', 1, 0)
+    , emp_len_yrs = as.numeric(emp_len_yrs)
+  ) %>% 
+  dplyr::bind_cols(lc_dummies_howner, lc_dummies_purpose) %>% 
+  dplyr::select(
+      -term
+    , -home_ownership
+    , -purpose 
+    , -dplyr::starts_with('fico_range')
   )
