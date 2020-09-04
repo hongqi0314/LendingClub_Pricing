@@ -56,7 +56,7 @@ lc_data_nonCurrent <- lc_data_nonmiss %>%
   ) %>%
   dplyr::filter(loan_status != 'ongoing')
 
-## 2.3.1 Visualize charged off ratio for each sub grade ----
+## 2.3.1 Visualize charged-off ratio for each sub grade ----
 gg_lc_subgrade_co_ratio <- lc_data_nonCurrent %>% 
   select(
       id
@@ -86,3 +86,27 @@ gg_lc_subgrade_co_ratio <- lc_data_nonCurrent %>%
   theme_bw()
 
 gg_lc_subgrade_co_ratio
+
+gg_lc_subgrade_pct <- lc_data_nonCurrent %>% 
+  select(
+    id
+    , sub_grade
+  ) %>% 
+  group_by(sub_grade) %>% 
+  summarise(
+    sub_grade_cnt = n(),
+    sub_grade_pct = round(n() / nrow(lc_data_nonCurrent) * 100, 2)
+  ) %>% 
+  ggplot(aes(x = sub_grade, y = sub_grade_pct, fill = sub_grade_cnt)) +
+  geom_col(color = 'purple') +
+  scale_y_continuous(breaks = seq(0, 8, 1), labels = paste0(seq(0, 8, 1), '%')) +
+  scale_fill_gradient(low = "#00b159", high = "#d11141") +
+  geom_text(aes(label = paste0(sub_grade_pct, '%')), 
+            vjust = -0.2, color = 'black', size = 3.2,
+            position = position_dodge(.9)) +
+  xlab('LendingClub Sub Grade') +
+  ylab('Sub Grade Percentage') +
+  labs(fill = 'Loan Count') +
+  theme_bw()
+
+gg_lc_subgrade_pct
