@@ -58,13 +58,13 @@ lc_data_nonCurrent <- lc_data_nonmiss %>%
 
 ## 2.3.1 Visualize charged-off ratio for each sub grade ----
 gg_lc_subgrade_co_ratio <- lc_data_nonCurrent %>% 
-  select(
+  dplyr::select(
       id
     , sub_grade
     , loan_status
   ) %>% 
-  group_by(sub_grade) %>% 
-  summarise(
+  dplyr::group_by(sub_grade) %>% 
+  dplyr::summarise(
     sub_grade_cnt = n(),
     bad_cnt = sum(loan_status == 'charged_off'),
     bad_ratio = 
@@ -88,12 +88,12 @@ gg_lc_subgrade_co_ratio <- lc_data_nonCurrent %>%
 gg_lc_subgrade_co_ratio
 
 gg_lc_subgrade_pct <- lc_data_nonCurrent %>% 
-  select(
-    id
+  dplyr::select(
+      id
     , sub_grade
   ) %>% 
-  group_by(sub_grade) %>% 
-  summarise(
+  dplyr::group_by(sub_grade) %>% 
+  dplyr::summarise(
     sub_grade_cnt = n(),
     sub_grade_pct = round(n() / nrow(lc_data_nonCurrent) * 100, 2)
   ) %>% 
@@ -110,3 +110,57 @@ gg_lc_subgrade_pct <- lc_data_nonCurrent %>%
   theme_bw()
 
 gg_lc_subgrade_pct
+
+### 2.4 Initial selection of predictive features ----
+cues_init <- readRDS(here::here('RDS', 'initial_cues.RDS'))
+
+lc_data_init_1 <- lc_data_nonCurrent %>% 
+  dplyr::select(all_of(cues_init), issue_d, last_pymnt_d)
+
+### 2.5 Categorical variables encoding ----
+lc_data_init_1 %>% 
+  dplyr::select_if(is.character) %>%
+  dplyr::select(-earliest_cr_line, -issue_d) %>%
+  purrr::map(., ~ round(prop.table(table(.)) * 100, 2))
+
+## 2.5.1 Parse "earliest_cr_line" ----
+lc_data_init_2 <- lc_data_init_1 %>% 
+  dplyr::mutate(
+    earliest_cr_line = 
+      lubridate::parse_date_time(str_c('01-', earliest_cr_line), 'dmy'),
+      issue_d = 
+        lubridate::parse_date_time(str_c('01-', issue_d), 'dmy'),
+      infile_mths = 
+        lubridate::interval(earliest_cr_line, issue_d) %/% months(1)
+  )
+
+## 2.5.2 Re-organize classes with very few cases ----
+lc_data_init_3 <- lc_data_init_2 %>% 
+  dplyr::select(-application_type) %>% # very few 'Joint App'
+  dplyr::mutate(
+    home_ownership = case_when(
+      home_ownership %in% c('ANY', 'NONE', 'OTHER') ~ 'RENT',
+      TRUE ~ home_ownership
+    ),
+    purpose = case_when(
+      purpose %in% c('educational', 
+                     'house', 
+                     'moving', 
+                     'other', 
+                     'renewable_energy', 
+                     'small_business', 
+                     'vacation', 
+                     'wedding') ~ 'other',
+      TRUE ~ purpose
+    )
+  )
+
+## 2.5.3 Other cleaning ----
+lc_data_init_4 <- lc_data_init_3 %>% 
+  dplyr::mutate(
+    fico_avg = (fico_range_low + fico_range_high) / 2,
+    emp_len_yrs = case_when(
+      str_detect(emp_length, regex('^< 1')) ~ '0',
+      TRUE ~ str_extract(emp_length, regex('(\\d)+'))
+    )
+  )
