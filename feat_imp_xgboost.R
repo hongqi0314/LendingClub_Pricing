@@ -158,3 +158,57 @@ best_min_child_weight <- scores_min_child_weight_display %>%
   pull(min_child_weight)
 
 print(glue("best 'min_child_weight' is {best_min_child_weight}."))
+
+### 1.3 "colsample_bytree" ----
+scores_colsample_bytree <- c()
+
+for (colsample_bytree in c(0.1, 0.3, 0.5, 0.7, 0.9)) {
+  
+  lc_param <- list(
+      'objective' = 'binary:logistic'
+    , 'eta' = 0.01
+    , 'max_depth' = best_max_depth
+    , 'min_child_weight' = best_min_child_weight
+    , 'colsample_bytree' = colsample_bytree
+    , 'subsample' = 1
+    , 'gamma' = 0
+  )
+  
+  cv_results <- xgb.cv(
+      params = lc_param 
+    , data = lc_xgb_train_sample[, xgb_colnames != "loan_status"]
+    , label = lc_xgb_train_sample[, "loan_status"]
+    , nfold = 5
+    , nrounds = 2500
+    , early_stopping_rounds = 500
+    , verbose = TRUE
+    , stratified = TRUE
+    , prediction = TRUE
+    , metrics = 'auc'
+    , seed = 12345
+  )
+  
+  best_iteration <- cv_results$best_iteration
+  best_score <- max(cv_results$evaluation_log[['test_auc_mean']])
+  print(glue("'colsample_bytree': {colsample_bytree} -- 
+              'best_iteration': {best_iteration} --
+              'best_score': {best_score}"))
+  scores_colsample_bytree <- 
+    c(scores_colsample_bytree, best_score, lc_param[['eta']], 
+      lc_param[['max_depth']], lc_param[['min_child_weight']], 
+      lc_param[['colsample_bytree']], lc_param[['subsample']], 
+      lc_param[['gamma']], best_iteration)
+  
+}
+
+scores_colsample_bytree_display <- 
+  as.data.frame( matrix(scores_colsample_bytree, ncol = 8, byrow = TRUE) )
+names(scores_colsample_bytree_display) <- 
+  c('score', 'eta', 'max_depth', 'min_child_weight', 
+    'colsample_bytree', 'subsample', 'gamma', 
+    'best_iteration')
+best_colsample_bytree <- scores_colsample_bytree_display %>%
+  top_n(1, score) %>%
+  pull(colsample_bytree)
+
+print(glue("best 'colsample_bytree' is {best_colsample_bytree}."))
