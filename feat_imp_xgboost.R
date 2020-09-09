@@ -22,6 +22,8 @@ lc_xgb_train <- lc_xgb_data[in_train, ]
 lc_xgb_test <- lc_xgb_data[-in_train, ]
 lc_xgb_train_sample <- 
   lc_xgb_train[sample(1:nrow(lc_xgb_train), size = 50000, replace = FALSE), ]
+lc_xgb_test_sample <- 
+  lc_xgb_test[sample(1:nrow(lc_xgb_test), size = 15000, replace = FALSE), ]
 
 ### 0.4 xgb.cv using default hyper-parameters ----
 lc_param <- list(
@@ -212,3 +214,65 @@ best_colsample_bytree <- scores_colsample_bytree_display %>%
   pull(colsample_bytree)
 
 print(glue("best 'colsample_bytree' is {best_colsample_bytree}."))
+
+
+#### 3. Bayesian optimization ----
+xgbDM_train <- 
+  xgb.DMatrix(label = lc_xgb_train_sample[, 'loan_status'], 
+              data = lc_xgb_train_sample[, xgb_colnames != 'loan_status'])
+xgbDM_test <- 
+  xgb.DMatrix(label = lc_xgb_test_sample[, 'loan_status'], 
+              data = lc_xgb_test_sample[, xgb_colnames != 'loan_status'])
+watchlist <- list(train = xgbDM_train, eval = xgbDM_test)
+
+cv_folds <- 
+  KFold(lc_xgb_train_sample[, 'loan_status'], 
+        nfolds = 5, 
+        stratified = TRUE, 
+        seed = 314817)
+
+xgb_cv_bayes <- function(max_depth, 
+                         min_child_weight,
+                         colsample_bytree,
+                         subsample,
+                         gamma) {
+  lc_params = list(objective = "binary:logistic",
+                   eta = 0.01,
+                   max_depth = max_depth,
+                   min_child_weight = min_child_weight,
+                   colsample_bytree = colsample_bytree,
+                   subsample = subsample,
+                   gamma = gamma,
+                   lambda = 1, 
+                   alpha = 0)
+  cv <- xgb.cv(params = lc_params,
+               data = xgbDM_train, 
+               seed = 12345,
+               metrics = 'auc',
+               nround = 1000,
+               early_stopping_rounds = 100,
+               folds = cv_folds, 
+               prediction = TRUE, 
+               showsd = TRUE,
+               maximize = TRUE, 
+               verbose = TRUE)
+  list(Score = cv$evaluation_log$test_auc_mean[cv$best_iteration],
+       Pred = cv$pred)
+}
+
+lc_bayes_opt <- 
+  BayesianOptimization(xgb_cv_bayes,
+                       bounds = list(max_depth = c(3L, 10L),
+                                     min_child_weight = c(0L, 100L),    
+                                     colsample_bytree = c(0.1, 0.7),
+                                     subsample = c(0.7, 1),
+                                     gamma = c(0, 2)),
+                       init_grid_dt = NULL, 
+                       init_points = 10, 
+                       n_iter = 20, 
+                       acq = "ucb", 
+                       kappa = 2.576, 
+                       eps = 0.0, 
+                       verbose = TRUE)
+
+saveRDS(lc_bayes_opt, here::here('RDS', 'lc_bayes_opt.RDS'))
