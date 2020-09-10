@@ -109,6 +109,8 @@ best_max_depth <- scores_max_depth_display %>%
 
 print(glue::glue("best 'max_depth' is {best_max_depth}."))
 
+# scores_max_depth_display <- readRDS(here::here('RDS', 'scores_max_depth.RDS'))
+
 ### 1.2 "min_child_weight" ----
 scores_min_child_weight <- c()
 
@@ -160,6 +162,9 @@ best_min_child_weight <- scores_min_child_weight_display %>%
   pull(min_child_weight)
 
 print(glue("best 'min_child_weight' is {best_min_child_weight}."))
+
+# scores_min_child_weight_display <- 
+#   readRDS(here::here('RDS', 'scores_min_child_weight.RDS')) 
 
 ### 1.3 "colsample_bytree" ----
 scores_colsample_bytree <- c()
@@ -215,6 +220,9 @@ best_colsample_bytree <- scores_colsample_bytree_display %>%
 
 print(glue("best 'colsample_bytree' is {best_colsample_bytree}."))
 
+# scores_colsample_bytree_display <- 
+#   readRDS(here::here('RDS', 'scores_colsample_bytree.RDS'))
+
 ### 1.4 "subsample" ----
 scores_subsample <- c()
 
@@ -268,6 +276,8 @@ best_subsample <- scores_subsample_display %>%
 
 print(glue("best 'subsample' is {best_subsample}."))
 
+# scores_subsample_display <- readRDS(here::here('RDS', 'scores_subsample.RDS'))
+
 ### 1.5 "gamma" ----
 scores_gamma <- c()
 
@@ -320,6 +330,37 @@ best_gamma <- scores_gamma_display %>%
 
 print(glue("best 'gamma' is {best_gamma}."))
 
+### 1.6 Fit xgb with manually tuned parameters ----
+xgbDM_train <- 
+  xgb.DMatrix(label = lc_xgb_train[, 'loan_status'], 
+              data = lc_xgb_train[, xgb_colnames != "loan_status"])
+xgbDM_test <- 
+  xgb.DMatrix(label = lc_xgb_test[, 'loan_status'], 
+              data = lc_xgb_test[, xgb_colnames != "loan_status"])
+watchlist <- list(train = xgbDM_train, eval = xgbDM_test)
+
+lc_param <- list(
+    'objective' = 'binary:logistic'
+  , 'eta' = 0.01
+  , 'max_depth' = best_max_depth
+  , 'min_child_weight' = best_min_child_weight
+  , 'colsample_bytree' = best_colsample_bytree
+  , 'subsample' = best_subsample
+  , 'gamma' = best_gamma
+)
+
+lc_xgb_fit <- xgb.train(
+    params = lc_param
+  , data = xgbDM_train
+  , seed = 314817
+  , nrounds = 5000
+  , watchlist = watchlist
+  , early_stopping_rounds = 100
+  , verbose = TRUE
+  , stratified = TRUE
+  , prediction = TRUE
+  , eval_metric = 'auc'
+)
 
 #### 3. Bayesian optimization ----
 xgbDM_train <- 
@@ -379,5 +420,3 @@ lc_bayes_opt <-
                        kappa = 2.576, 
                        eps = 0.0, 
                        verbose = TRUE)
-
-saveRDS(lc_bayes_opt, here::here('RDS', 'lc_bayes_opt.RDS'))
