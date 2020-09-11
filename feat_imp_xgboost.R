@@ -362,6 +362,22 @@ lc_xgb_fit <- xgb.train(
   , eval_metric = 'auc'
 )
 
+lc_xgb_pred <- predict(lc_xgb_fit, 
+                       lc_xgb_test[, xgb_colnames != "loan_status"])
+lc_xgb_true <- lc_xgb_test[, 'loan_status']
+lc_xgb_results <- 
+  dplyr::bind_cols(pred = lc_xgb_pred, truth = lc_xgb_true) %>% 
+  dplyr::mutate(truth = factor(truth))
+
+yardstick::roc_auc(data = lc_xgb_results, truth = truth, estimates = pred)
+yardstick::pr_auc(data = lc_xgb_results, truth = truth, estimates = pred)
+
+#### 2. Feature importance ranking ----
+lc_xgb_imp <- 
+  xgb.importance(feature_names = lc_xgb_fit$feature_names, 
+                 model = lc_xgb_fit)
+View(lc_xgb_imp)
+
 #### 3. Bayesian optimization ----
 xgbDM_train <- 
   xgb.DMatrix(label = lc_xgb_train_sample[, 'loan_status'], 
